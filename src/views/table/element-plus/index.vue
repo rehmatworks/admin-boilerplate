@@ -1,0 +1,250 @@
+<script lang="ts" setup>
+import { reactive, ref, watch } from "vue"
+import { createTableDataApi, deleteTableDataApi, updateTableDataApi, getTableDataApi } from "@/api/table"
+import { type IGetTableData } from "@/api/table/types/table"
+import { type FormInstance, type FormRules, ElMessage, ElMessageBox } from "element-plus"
+import { Search, Refresh, CirclePlus, Delete, Download, RefreshRight } from "@element-plus/icons-vue"
+import { usePagination } from "@/hooks/usePagination"
+
+defineOptions({
+  name: "ElementPlus"
+})
+
+const loading = ref<boolean>(false)
+const { paginationData, handleCurrentChange, handleSizeChange } = usePagination()
+
+//#region 增
+const dialogVisible = ref<boolean>(false)
+const formRef = ref<FormInstance | null>(null)
+const formData = reactive({
+  email: "",
+  password: ""
+})
+const formRules: FormRules = reactive({
+  email: [{ required: true, trigger: "blur", message: "Email is required." }],
+  password: [{ required: true, trigger: "blur", message: "Password is required." }]
+})
+const handleCreate = () => {
+  formRef.value?.validate((valid: boolean) => {
+    if (valid) {
+      if (currentUpdateId.value === undefined) {
+        createTableDataApi({
+          email: formData.email,
+          password: formData.password
+        }).then(() => {
+          ElMessage.success("Account has been linked successfully.")
+          dialogVisible.value = false
+          getTableData()
+        })
+      } else {
+        updateTableDataApi({
+          id: currentUpdateId.value,
+          email: formData.email
+        }).then(() => {
+          ElMessage.success("Account has been re-linked successfully")
+          dialogVisible.value = false
+          getTableData()
+        })
+      }
+    } else {
+      return false
+    }
+  })
+}
+const resetForm = () => {
+  currentUpdateId.value = undefined
+  formData.email = ""
+  formData.password = ""
+}
+//#endregion
+
+//#region 删
+const handleDelete = (row: IGetTableData) => {
+  ElMessageBox.confirm(`${row.email} will be deleted and no further activity will be performed on this account.`, "Confirm Delete", {
+    confirmButtonText: "Confirm",
+    cancelButtonText: "Cancel",
+    type: "warning"
+  }).then(() => {
+    deleteTableDataApi(row.id).then(() => {
+      ElMessage.success("Account has been deleted!")
+      getTableData()
+    })
+  })
+}
+//#endregion
+
+//#region 改
+const currentUpdateId = ref<undefined | string>(undefined)
+const handleUpdate = (row: IGetTableData) => {
+  currentUpdateId.value = row.id
+  formData.email = row.email
+  dialogVisible.value = true
+}
+//#endregion
+
+//#region 查
+const tableData = ref<IGetTableData[]>([])
+const searchFormRef = ref<FormInstance | null>(null)
+const searchData = reactive({
+  email: "",
+  phone: ""
+})
+const getTableData = () => {
+  loading.value = true
+  getTableDataApi({
+    currentPage: paginationData.currentPage,
+    size: paginationData.pageSize,
+    email: searchData.email || undefined,
+    phone: searchData.phone || undefined
+  })
+    .then((res) => {
+      paginationData.total = res.data.total
+      tableData.value = res.data.list
+    })
+    .catch(() => {
+      tableData.value = []
+    })
+    .finally(() => {
+      loading.value = false
+    })
+}
+const handleSearch = () => {
+  if (paginationData.currentPage === 1) {
+    getTableData()
+  }
+  paginationData.currentPage = 1
+}
+const resetSearch = () => {
+  searchFormRef.value?.resetFields()
+  if (paginationData.currentPage === 1) {
+    getTableData()
+  }
+  paginationData.currentPage = 1
+}
+const handleRefresh = () => {
+  getTableData()
+}
+//#endregion
+
+/** 监听分页参数的变化 */
+watch([() => paginationData.currentPage, () => paginationData.pageSize], getTableData, { immediate: true })
+</script>
+
+<template>
+  <div class="app-container">
+    <el-card v-loading="loading" shadow="never" class="search-wrapper">
+      <el-form ref="searchFormRef" :inline="true" :model="searchData">
+        <el-form-item prop="email" label="Email">
+          <el-input v-model="searchData.email" placeholder="Email address" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :icon="Search" @click="handleSearch">Search</el-button>
+          <el-button :icon="Refresh" @click="resetSearch">Reset</el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
+    <el-card v-loading="loading" shadow="never">
+      <div class="toolbar-wrapper">
+        <div>
+          <el-button type="primary" :icon="CirclePlus" @click="dialogVisible = true">Add New</el-button>
+        </div>
+        <div>
+          <el-tooltip content="Export Report">
+            <el-button type="primary" :icon="Download" circle />
+          </el-tooltip>
+          <el-tooltip content="Reload">
+            <el-button type="primary" :icon="RefreshRight" circle @click="handleRefresh" />
+          </el-tooltip>
+        </div>
+      </div>
+      <div class="table-wrapper">
+        <el-table :data="tableData" size="large">
+          <el-table-column prop="email" label="Email Address" align="left" />
+          <el-table-column prop="roles" label="" align="left">
+            <template #default="scope">
+              <el-tag v-if="scope.row.roles === 'admin'" type="success" effect="success">
+                Connected
+              </el-tag>
+              <el-tag v-else type="warning" effect="warning">
+                Disconnected
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="roles" label="Connections" align="left">
+            <template #default="scope">
+              <el-text class="mx-1" type="default">132</el-text> <el-text class="ml-1" type="success">(232 new)</el-text>
+            </template>
+          </el-table-column>
+          <el-table-column prop="createTime" label="Last Activity" align="left" />
+          <el-table-column fixed="right" label="" width="200" align="left">
+            <template #default="scope">
+              <el-button type="primary" text bg size="small" @click="handleUpdate(scope.row)">Manage</el-button>
+              <el-button type="danger" text bg size="small" @click="handleDelete(scope.row)">Delete</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <div class="pager-wrapper">
+        <el-pagination
+          background
+          :layout="paginationData.layout"
+          :page-sizes="paginationData.pageSizes"
+          :total="paginationData.total"
+          :page-size="paginationData.pageSize"
+          :currentPage="paginationData.currentPage"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </el-card>
+    <!-- 新增/修改 -->
+    <el-dialog
+      v-model="dialogVisible"
+      :title="currentUpdateId === undefined ? 'Link Account' : 'Re-link Account'"
+      @close="resetForm"
+      width="30%"
+    >
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" label-position="left">
+        <el-form-item prop="email" label="Email">
+          <el-input v-model="formData.email" placeholder="Email" />
+        </el-form-item>
+        <el-form-item prop="password" label="Password" v-if="currentUpdateId === undefined">
+          <el-input v-model="formData.password" placeholder="Password" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">Cancel</el-button>
+        <el-button type="primary" @click="handleCreate">Save</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<style lang="scss" scoped>
+.search-wrapper {
+  margin-bottom: 20px;
+  :deep(.el-card__body) {
+    padding-bottom: 2px;
+  }
+}
+
+.toolbar-wrapper {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.table-wrapper {
+  margin-bottom: 20px;
+}
+
+.pager-wrapper {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.item {
+  margin-top: 10px;
+  margin-right: 40px;
+}
+</style>
