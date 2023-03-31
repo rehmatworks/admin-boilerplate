@@ -18,7 +18,8 @@ export interface GetUserRequestData {
   /** 查询条数 */
   size: number
   /** 查询参数：用户名 */
-  search?: string
+  search?: string,
+  ordering?: string
 }
 
 export interface GetUserData {

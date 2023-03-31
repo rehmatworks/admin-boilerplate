@@ -3,7 +3,7 @@ import { reactive, ref, watch } from "vue"
 import { createUserDataApi, deleteUserDataApi, updateUserDataApi, getUserDataApi } from "@/api/users"
 import { type GetUserData } from "@/api/users/types/users"
 import { type FormInstance, type FormRules, ElMessage, ElMessageBox } from "element-plus"
-import { Search, Refresh, CirclePlus, Delete, Download, RefreshRight } from "@element-plus/icons-vue"
+import { Search, Refresh, CirclePlus, Download, RefreshRight } from "@element-plus/icons-vue"
 import { usePagination } from "@/hooks/usePagination"
 import { useUserStore } from "@/store/modules/user"
 
@@ -35,13 +35,13 @@ const handleCreate = () => {
     if (valid) {
       if (currentUpdateId.value === undefined) {
         createUserDataApi(formData).then(() => {
-          ElMessage.success("Account has been linked successfully.")
+          ElMessage.success("User has been added successfully.")
           dialogVisible.value = false
           getUsersData()
         })
       } else {
         updateUserDataApi(formData, currentUpdateId.value).then(() => {
-          ElMessage.success("Account has been re-linked successfully")
+          ElMessage.success("User has been updated successfully")
           dialogVisible.value = false
           getUsersData()
         })
@@ -50,6 +50,15 @@ const handleCreate = () => {
       return false
     }
   })
+}
+
+const handleSort = (event: any) => {
+  if(event.order == 'ascending') {
+    searchData.ordering = event.prop
+  } else {
+    searchData.ordering = `-${event.prop}`
+  }
+  getUsersData()
 }
 const resetForm = () => {
   currentUpdateId.value = undefined
@@ -68,7 +77,7 @@ const handleDelete = (row: GetUserData) => {
     type: "warning"
   }).then(() => {
     deleteUserDataApi(row.id).then(() => {
-      ElMessage.success("Account has been deleted!")
+      ElMessage.success("User has been deleted!")
       getUsersData()
     })
   })
@@ -90,14 +99,16 @@ const handleUpdate = (row: GetUserData) => {
 const tableData = ref<GetUserData[]>([])
 const searchFormRef = ref<FormInstance | null>(null)
 const searchData = reactive({
-  search: ""
+  search: "",
+  ordering: ""
 })
 const getUsersData = () => {
   loading.value = true
   getUserDataApi({
     currentPage: paginationData.currentPage,
     size: paginationData.pageSize,
-    search: searchData.search || undefined
+    search: searchData.search || undefined,
+    ordering: searchData.ordering || ''
   })
     .then((res) => {
       paginationData.total = res.data.count
@@ -160,10 +171,10 @@ watch([() => paginationData.currentPage, () => paginationData.pageSize], getUser
         </div>
       </div>
       <div class="table-wrapper">
-        <el-table :data="tableData" size="large">
+        <el-table :data="tableData" @sort-change="handleSort" size="large">
           <el-table-column prop="full_name" label="Full Name" align="left" />
-          <el-table-column prop="email" label="Email Address" align="left" />
-          <el-table-column prop="date_joined" label="Date Joined" align="left">
+          <el-table-column sortable="custom" prop="email" label="Email Address" align="left" />
+          <el-table-column sortable="custom" prop="date_joined" label="Date Joined" align="left">
             <template #default="scope">{{ new Date(scope.row.date_joined).toUTCString() }}</template>
           </el-table-column>
           <el-table-column fixed="right" label="" width="200" align="left">
