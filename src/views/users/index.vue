@@ -1,13 +1,15 @@
 <script lang="ts" setup>
 import { reactive, ref, watch } from "vue"
-import { createTableDataApi, deleteTableDataApi, updateTableDataApi, getTableDataApi } from "@/api/table"
-import { type IGetTableData } from "@/api/table/types/table"
+import { createUserDataApi, deleteUserDataApi, updateUserDataApi, getUserDataApi } from "@/api/users"
+import { type GetUserData } from "@/api/users/types/users"
 import { type FormInstance, type FormRules, ElMessage, ElMessageBox } from "element-plus"
 import { Search, Refresh, CirclePlus, Delete, Download, RefreshRight } from "@element-plus/icons-vue"
 import { usePagination } from "@/hooks/usePagination"
+import { useUserStore } from "@/store/modules/user"
+
 
 defineOptions({
-  name: "ElementPlus"
+  name: "ManageUsers"
 })
 
 const loading = ref<boolean>(false)
@@ -18,32 +20,30 @@ const dialogVisible = ref<boolean>(false)
 const formRef = ref<FormInstance | null>(null)
 const formData = reactive({
   email: "",
+  first_name: "",
+  last_name: "",
   password: ""
 })
 const formRules: FormRules = reactive({
   email: [{ required: true, trigger: "blur", message: "Email is required." }],
-  password: [{ required: true, trigger: "blur", message: "Password is required." }]
+  password: [{ required: true, trigger: "blur", message: "Password is required." }],
+  first_name: [{ required: true, trigger: "blur", message: "First name is required." }],
+  last_name: [{ required: true, trigger: "blur", message: "Last name is required." }],
 })
 const handleCreate = () => {
   formRef.value?.validate((valid: boolean) => {
     if (valid) {
       if (currentUpdateId.value === undefined) {
-        createTableDataApi({
-          email: formData.email,
-          password: formData.password
-        }).then(() => {
+        createUserDataApi(formData).then(() => {
           ElMessage.success("Account has been linked successfully.")
           dialogVisible.value = false
-          getTableData()
+          getUsersData()
         })
       } else {
-        updateTableDataApi({
-          id: currentUpdateId.value,
-          email: formData.email
-        }).then(() => {
+        updateUserDataApi(formData, currentUpdateId.value).then(() => {
           ElMessage.success("Account has been re-linked successfully")
           dialogVisible.value = false
-          getTableData()
+          getUsersData()
         })
       }
     } else {
@@ -54,20 +54,22 @@ const handleCreate = () => {
 const resetForm = () => {
   currentUpdateId.value = undefined
   formData.email = ""
+  formData.first_name = ""
+  formData.last_name = ""
   formData.password = ""
 }
 //#endregion
 
 //#region 删
-const handleDelete = (row: IGetTableData) => {
-  ElMessageBox.confirm(`${row.email} will be deleted and no further activity will be performed on this account.`, "Confirm Delete", {
+const handleDelete = (row: GetUserData) => {
+  ElMessageBox.confirm(`Warning: This will permanently delete the user (${row.full_name}) and all associated data. Proceed?`, "Confirm Delete", {
     confirmButtonText: "Confirm",
     cancelButtonText: "Cancel",
     type: "warning"
   }).then(() => {
-    deleteTableDataApi(row.id).then(() => {
+    deleteUserDataApi(row.id).then(() => {
       ElMessage.success("Account has been deleted!")
-      getTableData()
+      getUsersData()
     })
   })
 }
@@ -75,31 +77,31 @@ const handleDelete = (row: IGetTableData) => {
 
 //#region 改
 const currentUpdateId = ref<undefined | string>(undefined)
-const handleUpdate = (row: IGetTableData) => {
+const handleUpdate = (row: GetUserData) => {
   currentUpdateId.value = row.id
   formData.email = row.email
+  formData.first_name = row.first_name
+  formData.last_name = row.last_name
   dialogVisible.value = true
 }
 //#endregion
 
 //#region 查
-const tableData = ref<IGetTableData[]>([])
+const tableData = ref<GetUserData[]>([])
 const searchFormRef = ref<FormInstance | null>(null)
 const searchData = reactive({
-  email: "",
-  phone: ""
+  search: ""
 })
-const getTableData = () => {
+const getUsersData = () => {
   loading.value = true
-  getTableDataApi({
+  getUserDataApi({
     currentPage: paginationData.currentPage,
     size: paginationData.pageSize,
-    email: searchData.email || undefined,
-    phone: searchData.phone || undefined
+    search: searchData.search || undefined
   })
     .then((res) => {
-      paginationData.total = res.data.total
-      tableData.value = res.data.list
+      paginationData.total = res.data.count
+      tableData.value = res.data.results
     })
     .catch(() => {
       tableData.value = []
@@ -110,32 +112,32 @@ const getTableData = () => {
 }
 const handleSearch = () => {
   if (paginationData.currentPage === 1) {
-    getTableData()
+    getUsersData()
   }
   paginationData.currentPage = 1
 }
 const resetSearch = () => {
   searchFormRef.value?.resetFields()
   if (paginationData.currentPage === 1) {
-    getTableData()
+    getUsersData()
   }
   paginationData.currentPage = 1
 }
 const handleRefresh = () => {
-  getTableData()
+  getUsersData()
 }
 //#endregion
 
 /** 监听分页参数的变化 */
-watch([() => paginationData.currentPage, () => paginationData.pageSize], getTableData, { immediate: true })
+watch([() => paginationData.currentPage, () => paginationData.pageSize], getUsersData, { immediate: true })
 </script>
 
 <template>
   <div class="app-container">
     <el-card v-loading="loading" shadow="never" class="search-wrapper">
       <el-form ref="searchFormRef" :inline="true" :model="searchData">
-        <el-form-item prop="email" label="Email">
-          <el-input v-model="searchData.email" placeholder="Email address" />
+        <el-form-item prop="search" label="Search">
+          <el-input v-model="searchData.search" placeholder="Search users" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :icon="Search" @click="handleSearch">Search</el-button>
@@ -159,27 +161,15 @@ watch([() => paginationData.currentPage, () => paginationData.pageSize], getTabl
       </div>
       <div class="table-wrapper">
         <el-table :data="tableData" size="large">
+          <el-table-column prop="full_name" label="Full Name" align="left" />
           <el-table-column prop="email" label="Email Address" align="left" />
-          <el-table-column prop="roles" label="" align="left">
-            <template #default="scope">
-              <el-tag v-if="scope.row.roles === 'admin'" type="success" effect="success">
-                Connected
-              </el-tag>
-              <el-tag v-else type="warning" effect="warning">
-                Disconnected
-              </el-tag>
-            </template>
+          <el-table-column prop="date_joined" label="Date Joined" align="left">
+            <template #default="scope">{{ new Date(scope.row.date_joined).toUTCString() }}</template>
           </el-table-column>
-          <el-table-column prop="roles" label="Connections" align="left">
-            <template #default="scope">
-              <el-text class="mx-1" type="default">132</el-text> <el-text class="ml-1" type="success">(232 new)</el-text>
-            </template>
-          </el-table-column>
-          <el-table-column prop="createTime" label="Last Activity" align="left" />
           <el-table-column fixed="right" label="" width="200" align="left">
             <template #default="scope">
-              <el-button type="primary" text bg size="small" @click="handleUpdate(scope.row)">Manage</el-button>
-              <el-button type="danger" text bg size="small" @click="handleDelete(scope.row)">Delete</el-button>
+              <el-button type="primary" text bg size="small" @click="handleUpdate(scope.row)">Edit</el-button>
+              <el-button type="danger" :disabled="useUserStore().email == scope.row.email" text bg size="small" @click="handleDelete(scope.row)">Delete</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -200,13 +190,19 @@ watch([() => paginationData.currentPage, () => paginationData.pageSize], getTabl
     <!-- 新增/修改 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="currentUpdateId === undefined ? 'Link Account' : 'Re-link Account'"
+      :title="currentUpdateId === undefined ? 'Add User' : 'Update User'"
       @close="resetForm"
       width="30%"
     >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100px" label-position="left">
         <el-form-item prop="email" label="Email">
           <el-input v-model="formData.email" placeholder="Email" />
+        </el-form-item>
+        <el-form-item prop="first_name" label="First Name">
+          <el-input v-model="formData.first_name" placeholder="First name" />
+        </el-form-item>
+        <el-form-item prop="last_name" label="Last Name">
+          <el-input v-model="formData.last_name" placeholder="Last name" />
         </el-form-item>
         <el-form-item prop="password" label="Password" v-if="currentUpdateId === undefined">
           <el-input v-model="formData.password" placeholder="Password" />
