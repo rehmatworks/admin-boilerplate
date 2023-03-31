@@ -1,45 +1,46 @@
 <script lang="ts" setup>
 import { reactive, ref } from "vue"
 import { useRouter } from "vue-router"
-import { useUserStore } from "@/store/modules/user"
 import { User, Lock, Key, Picture, Loading } from "@element-plus/icons-vue"
 import { type FormInstance, FormRules } from "element-plus"
-import { type ILoginRequestData } from "@/api/login/types/login"
+import { type CreateUserRequestData } from "@/api/users/types/users"
+import { createUserDataApi } from "@/api/users"
+import { ElMessage } from "element-plus"
 
 const router = useRouter()
-const loginFormRef = ref<FormInstance | null>(null)
+const regFormRef = ref<FormInstance | null>(null)
 
 /** 登录按钮 Loading */
 const loading = ref(false)
 
 /** 登录表单数据 */
-const loginForm: ILoginRequestData = reactive({
-  email: "contact@rehmat.works",
-  password: "asdf"
+const regForm: CreateUserRequestData = reactive({
+  email: '',
+  first_name: '',
+  last_name: '',
+  password: ''
 })
 /** 登录表单校验规则 */
-const loginFormRules: FormRules = {
+const regFormRules: FormRules = {
   email: [{ required: true, message: "Email is required.", trigger: "blur" }],
+  first_name: [{ required: true, message: "First name is required.", trigger: "blur" }],
+  last_name: [{ required: true, message: "Last name is required.", trigger: "blur" }],
   password: [
     { required: true, message: "Password is required.", trigger: "blur" }
   ]
 }
 /** 登录逻辑 */
-const handleLogin = () => {
-  loginFormRef.value?.validate((valid: boolean) => {
+const handleRegister = () => {
+  regFormRef.value?.validate((valid: boolean) => {
     if (valid) {
       loading.value = true
-      useUserStore()
-        .login({
-          email: loginForm.email,
-          password: loginForm.password
-        })
-        .then(() => {
-          router.push({ path: "/" })
+      createUserDataApi(regForm).then(() => {
+          ElMessage.success("Registration successful!")
+          router.push({ path: "/login" })
         })
         .catch((err) => {
           console.log(err)
-          loginForm.password = ""
+          regForm.password = ""
         })
         .finally(() => {
           loading.value = false
@@ -52,17 +53,37 @@ const handleLogin = () => {
 </script>
 
 <template>
-  <div class="login-container">
+  <div class="register-container">
     <div class="login-card">
       <div class="title">
         <img src="@/assets/layout/logo-text-2.png" />
       </div>
       <div class="content">
-        <el-form ref="loginFormRef" :model="loginForm" :rules="loginFormRules" @keyup.enter="handleLogin">
+        <el-form ref="regFormRef" :model="regForm" :rules="regFormRules" @keyup.enter="handleRegister">
           <el-form-item prop="email">
             <el-input
-              v-model.trim="loginForm.email"
+              v-model.trim="regForm.email"
               placeholder="Email"
+              type="text"
+              tabindex="1"
+              :prefix-icon="User"
+              size="large"
+            />
+          </el-form-item>
+          <el-form-item prop="first_name">
+            <el-input
+              v-model.trim="regForm.first_name"
+              placeholder="First name"
+              type="text"
+              tabindex="1"
+              :prefix-icon="User"
+              size="large"
+            />
+          </el-form-item>
+          <el-form-item prop="last_name">
+            <el-input
+              v-model.trim="regForm.last_name"
+              placeholder="Last name"
               type="text"
               tabindex="1"
               :prefix-icon="User"
@@ -71,7 +92,7 @@ const handleLogin = () => {
           </el-form-item>
           <el-form-item prop="password">
             <el-input
-              v-model.trim="loginForm.password"
+              v-model.trim="regForm.password"
               placeholder="Password"
               type="password"
               tabindex="2"
@@ -80,15 +101,13 @@ const handleLogin = () => {
               show-password
             />
           </el-form-item>
-          <el-button :loading="loading" type="primary" size="large" @click.prevent="handleLogin"> Sign in </el-button>
+          <el-button :loading="loading" type="primary" size="large" @click.prevent="handleRegister"> Sign up </el-button>
         </el-form>
         <div class="footer-links">
           <el-link :underline="false">
-            <router-link :to="{name: 'register'}">Create Account</router-link>
-          </el-link>
-          &nbsp;
-          <el-link :underline="false">
-            <router-link :to="{name: 'register'}">Reset Password</router-link>
+            <el-icon><Back /></el-icon>
+            &nbsp;
+            <router-link :to="{name: 'login'}">Back to log in</router-link>
           </el-link>
         </div>
       </div>
@@ -101,7 +120,7 @@ const handleLogin = () => {
   text-align: center;
   margin-top: 30px;
 }
-.login-container {
+.register-container {
   display: flex;
   justify-content: center;
   align-items: center;

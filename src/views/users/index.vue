@@ -55,8 +55,10 @@ const handleCreate = () => {
 const handleSort = (event: any) => {
   if(event.order == 'ascending') {
     searchData.ordering = event.prop
-  } else {
+  } else if(event.order == 'descending') {
     searchData.ordering = `-${event.prop}`
+  } else {
+    searchData.ordering = ''
   }
   getUsersData()
 }
